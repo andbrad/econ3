@@ -1,0 +1,58 @@
+---
+title: "ESM 204 - Assignment 4"
+author: "Brad Anderson and Andrew Steinkruger"
+date: "May 30, 2018"
+output: html_document
+---
+
+#### Appendix: Formulas and Calculations
+
+```{r setup, include=FALSE}
+
+# Set packages.
+library(readr)
+library(knitr)
+library(here)
+library(tidyverse)
+library(gapminder)
+library(sandwich)
+library(broom)
+library(lmtest)
+library(stargazer)
+
+# Set data.
+set_here()
+dat <- read_csv('dat.csv')
+
+```
+
+##### 1. Marginal Cost Estimation
+
+$$ MC_A = \beta_{0} + \beta_{1} * X_{abate} + u_i$$
+
+```{r linear_fit, include = FALSE}
+# Check scatters.
+qplot(Abatement, MC_A, data = dat)
+qplot(Abatement, MC_B, data = dat)
+qplot(Abatement, MC_C, data = dat)
+qplot(Abatement, MC_D, data = dat)
+
+# Fit linear models.
+model_a <- lm(MC_A ~ Abatement, data = dat)
+model_b <- lm(MC_B ~ Abatement, data = dat)
+model_c <- lm(MC_C ~ Abatement, data = dat)
+model_d <- lm(MC_D ~ Abatement, data = dat)
+
+plot(dat$MC_A ~ dat$Abatement, xlab="Butts", ylab="Farts", main="Model (A)")
+abline(model_a,col="green")
+
+# Save coefficients.
+coef<-as.data.frame(t(coefficients(model_a)))
+coef
+```
+
+#### 2. Demand Estimation
+
+$$ D_A = \beta_{0} - \beta_{1} * X_{abate} + u_i$$
+
+
