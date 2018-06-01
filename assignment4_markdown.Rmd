@@ -1,7 +1,7 @@
 ---
 title: "ESM 204 - Assignment 4"
 author: "Brad Anderson and Andrew Steinkruger"
-date: "May 30, 2018"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: html_document
 ---
 
@@ -26,16 +26,19 @@ dat <- read_csv('dat.csv')
 
 ```
 
-##### 1. Marginal Cost Estimation
+#### 1. Marginal Cost Estimation
 
-$$ MC_A = \beta_{0} + \beta_{1} * X_{abate} + u_i$$
+$$ MC_i = \beta_{0, i} + \beta_{1, i} * x_{abatement} + u_i$$
+Add explicit functions for each sector.
 
-```{r linear_fit, include = FALSE}
+Add explanation.
+
+```{r 1}
 # Check scatters.
-qplot(Abatement, MC_A, data = dat)
-qplot(Abatement, MC_B, data = dat)
-qplot(Abatement, MC_C, data = dat)
-qplot(Abatement, MC_D, data = dat)
+#qplot(Abatement, MC_A, data = dat)
+#qplot(Abatement, MC_B, data = dat)
+#qplot(Abatement, MC_C, data = dat)
+#qplot(Abatement, MC_D, data = dat)
 
 # Fit linear models.
 model_a <- lm(MC_A ~ Abatement, data = dat)
@@ -43,16 +46,212 @@ model_b <- lm(MC_B ~ Abatement, data = dat)
 model_c <- lm(MC_C ~ Abatement, data = dat)
 model_d <- lm(MC_D ~ Abatement, data = dat)
 
-plot(dat$MC_A ~ dat$Abatement, xlab="Butts", ylab="Farts", main="Model (A)")
-abline(model_a,col="green")
-
 # Save coefficients.
-coef<-as.data.frame(t(coefficients(model_a)))
-coef
+#coef_a <-as.data.frame(t(coefficients(model_a)))
+#coef
+
+# Prepare supply data for plotting.
+dat_plot_supply <- 
+  reshape2::melt(dat, id.vars = "Abatement") %>%
+  bind_cols(., 
+            bind_rows(data.frame(predict(model_a, interval = "confidence", level = 0.95)),
+                      data.frame(predict(model_b, interval = "confidence", level = 0.95)),
+                      data.frame(predict(model_c, interval = "confidence", level = 0.95)),
+                      data.frame(predict(model_d, interval = "confidence", level = 0.95))))
+
+# Plot supply.
+ggplot(dat_plot_supply, 
+         aes(Abatement,
+             value,
+             group = variable,
+             color = variable)) +
+        geom_point(alpha = .9) +
+        geom_line(aes(Abatement, 
+                      fit, 
+                      group = variable)) +
+        geom_ribbon(aes(Abatement, 
+                        ymin = lwr, 
+                        ymax = upr, 
+                        group = variable, 
+                        fill = variable), 
+                    alpha = 0.05, 
+                    color = NA, 
+                    show.legend = FALSE) +
+        labs(x = "Abatement", 
+             y = "Price",
+             title = "Estimated Marginal Costs of Abatement by Sector",
+             color = "Sector") +
+        theme_classic() +
+        coord_cartesian(expand = FALSE) +
+        scale_colour_hue(h = c(90, 270))
+
 ```
 
 #### 2. Demand Estimation
 
-$$ D_A = \beta_{0} - \beta_{1} * X_{abate} + u_i$$
+$$ d_i = \beta_{0, i} - \beta_{1, i} * x_{emissions} + u_i$$
+
+Add explicit functions for each sector.
+
+Add explanation.
+
+```{r 2}
+# Set supply x-maxima.
+xmax_a = 180
+xmax_b = 200
+xmax_c = 220
+xmax_d = 300
+# Set supply coefficients.
+b0_a <- unname(model_a$coefficients[1])
+b1_a <- unname(model_a$coefficients[2])
+b0_b <- unname(model_b$coefficients[1])
+b1_b <- unname(model_b$coefficients[2])
+b0_c <- unname(model_c$coefficients[1])
+b1_c <- unname(model_c$coefficients[2])
+b0_d <- unname(model_d$coefficients[1])
+b1_d <- unname(model_d$coefficients[2])
+# Set supply functions..
+s_a <- function(Abatement){
+                           supply_a <- b0_a + b1_a * Abatement 
+                           return(supply_a)
+                           }
+s_b <- function(Abatement){
+                           supply_b <- b0_b + b1_b * Abatement 
+                           return(supply_b)
+                           }
+s_c <- function(Abatement){
+                           supply_c <- b0_c + b1_c * Abatement 
+                           return(supply_c)
+                           }
+s_d <- function(Abatement){
+                           supply_d <- b0_d + b1_d * Abatement 
+                           return(supply_d)
+                           }
+# Set demand y-intercepts.
+ymax_a <- s_a(xmax_a)
+ymax_b <- s_b(xmax_b)
+ymax_c <- s_c(xmax_c)
+ymax_d <- s_d(xmax_d)
+# Set demand functions..
+d_a <- function(Abatement){
+                           demand_a <- ymax_a - b1_a * Abatement
+                           return(demand_a)
+                           }
+d_b <- function(Abatement){
+                           demand_b <- ymax_b - b1_b * Abatement
+                           return(demand_b)
+                           }
+d_c <- function(Abatement){
+                           demand_c <- ymax_c - b1_c * Abatement
+                           return(demand_c)
+                           }
+d_d <- function(Abatement){
+                           demand_d <- ymax_d - b1_d * Abatement
+                           return(demand_d)
+                           }
+# Plot demand functions.
+ggplot(data.frame(Abatement = c(0, 300)),
+       aes(Abatement)) +
+       stat_function(fun = d_a, geom = "line", xlim = c(0, 180)) +
+       stat_function(fun = d_b, geom = "line", xlim = c(0, 200)) +
+       stat_function(fun = d_c, geom = "line", xlim = c(0, 220)) +
+       stat_function(fun = d_d, geom = "line", xlim = c(0, 300)) +
+       labs(x = "Emissions", 
+            y = "Price",
+            title = "Estimated Marginal Benefits of Emissions by Sector") +
+       theme_classic() +
+       coord_cartesian(expand = FALSE)
+
+```
+
+#### 3. Costs and Benefits of Emission Reduction Policy Options
+
+**Add analytical solutions from notes once it's all done.**
+
+##### a. Cap
+
+```{r 3a}
+# Run cost by sector.
+# Check whether stats::integrate() is working right.
+integrate(s_a, 0, ymax_a/b1_a)
+integrate(s_b, 0, ymax_b/b1_b) 
+integrate(s_c, 0, ymax_c/b1_c)
+# Run benefit by sector.
+# Run tax revenue.
+
+```
+
+##### b. Tax
+
+```{r 3b}
+
+# THE NUMBERS ARE WRONG.
+
+# Find t.
+  # This chunk's all in demand terms.
+  # Refer to notes for a harebrained analytical solution. Check it. 
+  # Compute constants for aggregate supply.
+    b_k <- ymax_a/-b1_a + ymax_b/-b1_b + ymax_c/-b1_c
+    b_j <- 1/-b1_a + 1/-b1_b + 1/-b1_c
+  # Set aggregate supply function.
+    d_agg <- function(Abatement){
+                           demand_aggregate <- b_k / b_j - Abatement / b_j
+                           return(demand_aggregate)
+    }
+  # Get t, where t is the price or y-coordinate on the aggregate supply curve at q = 300.
+    t <- d_agg(300)
+    t
+  # Set new cost functions incorporating t.
+    dt_a <- function(Abatement){
+                           demand_tax_a <- ymax_a - t - b1_a * Abatement
+                           return(demand_tax_a)
+                           }
+    dt_b <- function(Abatement){
+                           demand_tax_b <- ymax_b - t - b1_b * Abatement
+                           return(demand_tax_b)
+                           }
+    dt_c <- function(Abatement){
+                           demand_tax_c <- ymax_c - t - b1_c * Abatement
+                           return(demand_tax_c)
+                           }
+    dt_d <- function(Abatement){
+                           demand_tax_d <- ymax_d - t - b1_d * Abatement
+                           return(demand_tax_d)
+                           }
+    # Compute constants for aggregate supply.
+    bt_k <- (ymax_a-t)/b1_a + (ymax_b-t)/b1_b + (ymax_c-t)/b1_c
+    bt_j <- (1/b1_a + 1/b1_b + 1/b1_c)
+  # Set aggregate supply function.
+    dt_agg <- function(Abatement){
+                           demand_aggregate <- bt_k / bt_j - Abatement / bt_j
+                           return(demand_aggregate)}
+    
+
+# Run cost by sector. Upper limits are analytical solutions for each function's x-intercept.
+    integrate(dt_agg, 0, ((bt_k / bt_j)/(1/bt_j)))
+    integrate(dt_a, 0, ((ymax_a - t)/b1_a))
+    integrate(dt_b, 0, ((ymax_b - t)/b1_b))
+    integrate(dt_c, 0, ((ymax_c - t)/b1_c))
+# Run benefit by sector.
+# Run tax revenue.
+    t*((bt_k / bt_j)/(1/bt_j))
+    
+```
+
+##### c. Cap and Trade
+
+```{r 3c}
+# Each sector's marginal cost and marginal benefit will be the same, what with the equimarginal principle.
+# Get quantities by sector from the uniform marginal benefit.
+  (-ymax_a + d_agg(300)/3) / -b1_a
+  (-ymax_b + d_agg(300)/3) / -b1_b
+  (-ymax_c + d_agg(300)/3) / -b1_c
+# Run benefit by sector.
+  integrate(d_a, 0, ((-ymax_a + d_agg(300)/3) / -b1_a))
+  integrate(d_b, 0, ((-ymax_a + d_agg(300)/3) / -b1_b))
+  integrate(d_c, 0, ((-ymax_a + d_agg(300)/3) / -b1_c))
+# Figure out where benefit accrues from permit transfers - where do the rents go?
+
+```
 
 
