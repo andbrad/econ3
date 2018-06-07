@@ -184,8 +184,12 @@ ggplot(data.frame(Emissions = c(0, 300)),
 tc_a_a <- integrate(d_a, xmax_a-100, xmax_a)
 tc_a_b <- integrate(d_b, xmax_b-100, xmax_b) 
 tc_a_c <- integrate(d_c, xmax_c-100, xmax_c)
-#tc_agg_a <- tc_a_a + tc_a_b + tc_a_c
+tc_a_agg <- sum(tc_a_a$value, tc_a_b$value, tc_a_c$value)
 
+tc_a_a$value
+tc_a_b$value
+tc_a_c$value
+tc_a_agg
 ```
 
 ##### b. Tax
@@ -195,99 +199,146 @@ tc_a_c <- integrate(d_c, xmax_c-100, xmax_c)
   # Set aggregate supply function.
     # Set inner functions.
 d_a_q <- function(Price){
-  demand_a <- (a0_a - Price)/a1_a
+  demand_a <- -(a0_a - Price)/a1_a
   return(demand_a)
 }
 d_b_q <- function(Price){
-  demand_b <- (a0_b - Price)/a1_b
+  demand_b <- -(a0_b - Price)/a1_b
   return(demand_b)
 }
 d_c_q <- function(Price){
-  demand_c <- (a0_c - Price)/a1_c
+  demand_c <- -(a0_c - Price)/a1_c
   return(demand_c)
 }
 d_d_q <- function(Price){
-  demand_d <- (a0_d - Price)/a1_d
+  demand_d <- -(a0_d - Price)/a1_d
   return(demand_d)
 } 
 
-# Set aggregate function.
-d_agg <- function(Price){
-  demand_aggregate <- if_else(Price <= a0_c, 
-                              if_else((d_a_q(Price)) > 0, d_a_q(Price), 0) + 
-                              if_else(d_b_q(Price) > 0, d_b_q(Price), 0) +
-                              if_else(d_c_q(Price) > 0, d_c_q(Price), 0), 
-                                if_else(Price <= a0_b & Price > a0_c,
-                                      if_else(d_a_q(Price) > 0, d_a_q(Price), 0) + 
-                                      if_else(d_b_q(Price) > 0, d_b_q(Price), 0),
-                                        if_else(Price <= a0_a & Price > a0_b,
-                                              if_else(d_a_q(Price) > 0, d_a_q(Price), 0),
-                                              0)))
-  return(demand_aggregate)
+d_bac_q <- function(Price){
+  demand_bac_q <- -((a0_b - Price)/a1_b + (a0_a - Price)/a1_a + (a0_c - Price)/a1_c)
+  return(demand_bac_q)
+} 
+
+d_ac_q <- function(Price){
+  demand_ac_q <- -((a0_a - Price)/a1_a + (a0_c - Price)/a1_c)
+  return(demand_ac_q)
+} 
+
+# Get aggregate function from the plot.
+ggplot(data.frame(Price = c(0, a0_c)),
+       aes(Price)) +
+       stat_function(fun = d_bac_q, geom = "line", xlim = c(0, a0_b)) +
+       stat_function(fun = d_ac_q, geom = "line", xlim = c(a0_b, a0_a)) +
+       stat_function(fun = d_c_q, geom = "line", xlim = c(a0_a, a0_c)) +
+       stat_function(fun = d_c_q, geom = "line", xlim = c(0, a0_c)) +
+       stat_function(fun = d_a_q, geom = "line", xlim = c(0, a0_a)) +
+       stat_function(fun = d_b_q, geom = "line", xlim = c(0, a0_b)) +
+       labs(x = "Price", 
+            y = "Emissions",
+            title = "Estimated Marginal Benefits of Emissions by Sector") +
+       theme_classic() +
+       coord_flip(expand = FALSE)
+
+
+# Plot stuff to get the answer.
+p <- vector(length = 200)
+p <- seq(0, 199)
+agg <- vector(length = length(p))
+b <- vector(length = length(p))
+a <- vector(length = length(p))
+c <- vector(length = length(p))
+agg[1:a0_b] <- d_bac_q(p)
+agg[a0_b:a0_a] <- d_ac_q(p[a0_b:a0_a])
+agg[a0_a:a0_c] <- d_c_q(p[a0_a:a0_c])
+b[1:200] <- d_b_q(p)
+a[1:200] <- d_a_q(p)
+c[1:200] <- d_c_q(p)
+  
+solve <- data.frame(p, agg, c, a, b)
+
+# Find the tax and cap-and-trade equilibrium price by hand-substitution.
+t <- 37.309
+t
+
+# Set new cost functions incorporating t.
+dt_a <- function(Abatement){
+  demand_tax_a <- a0_a - t + a1_a * Abatement
+  return(demand_tax_a)
+}
+dt_b <- function(Abatement){
+  demand_tax_b <- a0_b - t + a1_a * Abatement
+  return(demand_tax_b)
+}
+dt_c <- function(Abatement){
+  demand_tax_c <- a0_c - t + a1_a * Abatement
+  return(demand_tax_c)
 }
 
-agg <- vector(length = 181)
+# Integrate for total costs.
+tb_b_a <- integrate(d_a, 0, -a0_a/a1_a) 
+tbt_b_a <- integrate(dt_a, 0, -(a0_a - t)/a1_a)
+tc_b_a <- tbt_b_a$value - tb_b_a$value
+tc_b_a
 
-for(i in 0:180){
-  agg[i] <- d_agg(i)
-}
+tb_b_b <- integrate(d_b, 0, -a0_b/a1_b) 
+tbt_b_b <- integrate(dt_b, 0, -(a0_b - t)/a1_b)
+tc_b_b <- tbt_b_b$value - tb_b_b$value
+tc_b_b
 
-agg
+tb_b_c <- integrate(d_c, 0, -a0_c/a1_c) 
+tbt_b_c <- integrate(dt_c, 0, -(a0_c - t)/a1_c)
+tc_b_c <- tbt_b_c$value - tb_b_c$value
+tc_b_c
 
-  # Get t, where t is the price or y-coordinate on the aggregate supply curve at q = 300.
-    t <- d_agg(300)
-    t
-  # Set new cost functions incorporating t.
-    dt_a <- function(Abatement){
-                           demand_tax_a <- ymax_a - t - b1_a * Abatement
-                           return(demand_tax_a)
-                           }
-    dt_b <- function(Abatement){
-                           demand_tax_b <- ymax_b - t - b1_b * Abatement
-                           return(demand_tax_b)
-                           }
-    dt_c <- function(Abatement){
-                           demand_tax_c <- ymax_c - t - b1_c * Abatement
-                           return(demand_tax_c)
-                           }
-    dt_d <- function(Abatement){
-                           demand_tax_d <- ymax_d - t - b1_d * Abatement
-                           return(demand_tax_d)
-                           }
-    # Compute constants for aggregate supply.
-    bt_k <- (ymax_a-t)/b1_a + (ymax_b-t)/b1_b + (ymax_c-t)/b1_c
-    bt_j <- (1/b1_a + 1/b1_b + 1/b1_c)
-  # Set aggregate supply function.
-    dt_agg <- function(Abatement){
-                           demand_aggregate <- bt_k / bt_j - Abatement / bt_j
-                           return(demand_aggregate)}
-    
+tc_b_agg <- tc_b_a + tc_b_b + tc_b_c
 
-# Run cost by sector. Upper limits are analytical solutions for each function's x-intercept.
-    integrate(dt_agg, 0, ((bt_k / bt_j)/(1/bt_j)))
-    integrate(dt_a, 0, ((ymax_a - t)/b1_a))
-    integrate(dt_b, 0, ((ymax_b - t)/b1_b))
-    integrate(dt_c, 0, ((ymax_c - t)/b1_c))
-# Run benefit by sector.
-# Run tax revenue.
-    t*((bt_k / bt_j)/(1/bt_j))
-    
+# Integrate tax revenue.
+trp_b_a <- integrate(d_a, 0, -(a0_a - t)/a1_a)
+trm_b_a <- integrate(dt_a, 0, -(a0_a - t)/a1_a)
+trp_b_b <- integrate(d_b, 0, -(a0_b - t)/a1_b)
+trm_b_b <- integrate(dt_b, 0, -(a0_b - t)/a1_b)
+trp_b_c <- integrate(d_c, 0, -(a0_c - t)/a1_c)
+trm_b_c <- integrate(dt_c, 0, -(a0_c - t)/a1_c)
+tr_b_agg <- sum(trp_b_a$value - trm_b_a$value + trp_b_b$value - trm_b_b$value + trp_b_c$value - trm_b_c$value)
+tr_b_agg
+
 ```
 
 ##### c. Cap and Trade
 
 ```{r 3c, eval = FALSE}
-# Each sector's marginal cost and marginal benefit will be the same, what with the equimarginal principle.
-# Get quantities by sector from the uniform marginal benefit.
-  (-ymax_a + d_agg(300)/3) / -b1_a
-  (-ymax_b + d_agg(300)/3) / -b1_b
-  (-ymax_c + d_agg(300)/3) / -b1_c
-# Run benefit by sector.
-  integrate(d_a, 0, ((-ymax_a + d_agg(300)/3) / -b1_a))
-  integrate(d_b, 0, ((-ymax_a + d_agg(300)/3) / -b1_b))
-  integrate(d_c, 0, ((-ymax_a + d_agg(300)/3) / -b1_c))
-# Figure out where benefit accrues from permit transfers - where do the rents go?
+# Reuse t from 3b to get quantities for each sector.
+d_a_q(t)
+d_b_q(t)
+d_c_q(t)
 
+# Check that they get to 300.
+d_a_q(t) + d_b_q(t) + d_c_q(t)
+
+# Get costs, sum costs, sum benefits.
+tc_c_a <- integrate(d_a, d_a_q(t), -a0_a/a1_a)
+tc_c_b <- integrate(d_b, d_b_q(t), -a0_b/a1_b)
+tc_c_c <- integrate(d_c, d_c_q(t), -a0_c/a1_c)
+tc_c_agg <- sum(tc_c_a$value, tc_c_b$value, tc_c_c$value)
+
+tc_c_a$value
+tc_c_b$value
+tc_c_c$value
+tc_c_agg
 ```
 
+#### 5. Implications of Carbon Market Entry for Air Pollution
+
+##### a. Air Pollution - No Entry
+
+Both countries must emit 300 tons of local air pollution, with the values for tons of emissions given from questions **(1)** - **(5)**.
+
+##### a. Air Pollution - Entry by Country Y
+
+```{r 5b}
+
+
+
+```
 
