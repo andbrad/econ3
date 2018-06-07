@@ -89,7 +89,7 @@ ggplot(dat_plot_supply,
 
 #### 2. Demand Estimation
 
-$$ d_i = \alpha_{0, i} - \alpha_{1, i} * x_{emissions} + u_i$$
+$$ d_i = \beta_{0, i} - \beta_{1, i} * x_{emissions} + u_i$$
 
 Add explicit functions for each sector.
 
@@ -128,38 +128,30 @@ s_d <- function(Abatement){
                            return(supply_d)
                            }
 # Set demand y-intercepts.
-a0_a <- b1_a * xmax_a
-a0_b <- b1_b * xmax_b
-a0_c <- b1_c * xmax_c
-a0_d <- b1_d * xmax_d
-
-# Set demand slopes.
-a1_a <- -b1_a
-a1_b <- -b1_b
-a1_c <- -b1_c
-a1_d <- -b1_d
-
-
-# Set demand functions.
-d_a <- function(Emissions){
-                           demand_a <- a0_a + a1_a * Emissions
+ymax_a <- s_a(xmax_a)
+ymax_b <- s_b(xmax_b)
+ymax_c <- s_c(xmax_c)
+ymax_d <- s_d(xmax_d)
+# Set demand functions..
+d_a <- function(Abatement){
+                           demand_a <- ymax_a - b1_a * Abatement
                            return(demand_a)
                            }
-d_b <- function(Emissions){
-                           demand_b <- a0_b + a1_b * Emissions
+d_b <- function(Abatement){
+                           demand_b <- ymax_b - b1_b * Abatement
                            return(demand_b)
                            }
-d_c <- function(Emissions){
-                           demand_c <- a0_c + a1_c * Emissions
+d_c <- function(Abatement){
+                           demand_c <- ymax_c - b1_c * Abatement
                            return(demand_c)
                            }
-d_d <- function(Emissions){
-                           demand_d <- a0_d + a1_d * Emissions
+d_d <- function(Abatement){
+                           demand_d <- ymax_d - b1_d * Abatement
                            return(demand_d)
                            }
 # Plot demand functions.
-ggplot(data.frame(Emissions = c(0, 300)),
-       aes(Emissions)) +
+ggplot(data.frame(Abatement = c(0, 300)),
+       aes(Abatement)) +
        stat_function(fun = d_a, geom = "line", xlim = c(0, 180)) +
        stat_function(fun = d_b, geom = "line", xlim = c(0, 200)) +
        stat_function(fun = d_c, geom = "line", xlim = c(0, 220)) +
@@ -181,59 +173,31 @@ ggplot(data.frame(Emissions = c(0, 300)),
 ```{r 3a}
 # Run cost by sector.
 # Check whether stats::integrate() is working right.
-tc_a_a <- integrate(d_a, xmax_a-100, xmax_a)
-tc_a_b <- integrate(d_b, xmax_b-100, xmax_b) 
-tc_a_c <- integrate(d_c, xmax_c-100, xmax_c)
-#tc_agg_a <- tc_a_a + tc_a_b + tc_a_c
+integrate(s_a, 0, ymax_a/b1_a)
+integrate(s_b, 0, ymax_b/b1_b) 
+integrate(s_c, 0, ymax_c/b1_c)
+# Run benefit by sector.
+# Run tax revenue.
 
 ```
 
 ##### b. Tax
 
 ```{r 3b}
+
+# THE NUMBERS ARE WRONG.
+
 # Find t.
+  # This chunk's all in demand terms.
+  # Refer to notes for a harebrained analytical solution. Check it. 
+  # Compute constants for aggregate supply.
+    b_k <- ymax_a/-b1_a + ymax_b/-b1_b + ymax_c/-b1_c
+    b_j <- 1/-b1_a + 1/-b1_b + 1/-b1_c
   # Set aggregate supply function.
-    # Set inner functions.
-d_a_q <- function(Price){
-  demand_a <- (a0_a - Price)/a1_a
-  return(demand_a)
-}
-d_b_q <- function(Price){
-  demand_b <- (a0_b - Price)/a1_b
-  return(demand_b)
-}
-d_c_q <- function(Price){
-  demand_c <- (a0_c - Price)/a1_c
-  return(demand_c)
-}
-d_d_q <- function(Price){
-  demand_d <- (a0_d - Price)/a1_d
-  return(demand_d)
-} 
-
-# Set aggregate function.
-d_agg <- function(Price){
-  demand_aggregate <- if_else(Price <= a0_c, 
-                              if_else((d_a_q(Price)) > 0, d_a_q(Price), 0) + 
-                              if_else(d_b_q(Price) > 0, d_b_q(Price), 0) +
-                              if_else(d_c_q(Price) > 0, d_c_q(Price), 0), 
-                                if_else(Price <= a0_b & Price > a0_c,
-                                      if_else(d_a_q(Price) > 0, d_a_q(Price), 0) + 
-                                      if_else(d_b_q(Price) > 0, d_b_q(Price), 0),
-                                        if_else(Price <= a0_a & Price > a0_b,
-                                              if_else(d_a_q(Price) > 0, d_a_q(Price), 0),
-                                              0)))
-  return(demand_aggregate)
-}
-
-agg <- vector(length = 181)
-
-for(i in 0:180){
-  agg[i] <- d_agg(i)
-}
-
-agg
-
+    d_agg <- function(Abatement){
+                           demand_aggregate <- b_k / b_j - Abatement / b_j
+                           return(demand_aggregate)
+    }
   # Get t, where t is the price or y-coordinate on the aggregate supply curve at q = 300.
     t <- d_agg(300)
     t
@@ -276,7 +240,7 @@ agg
 
 ##### c. Cap and Trade
 
-```{r 3c, eval = FALSE}
+```{r 3c}
 # Each sector's marginal cost and marginal benefit will be the same, what with the equimarginal principle.
 # Get quantities by sector from the uniform marginal benefit.
   (-ymax_a + d_agg(300)/3) / -b1_a
